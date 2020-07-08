@@ -106,7 +106,7 @@ def run(opts):
             ).to(opts.device)
         )
     elif opts.baseline == 'rollout':  # understand this branch at first
-        baseline = RolloutBaseline(model, problem, opts)
+        baseline = RolloutBaseline(model, problem, opts)  # model is an instance and problem is a class
     else:
         assert opts.baseline is None, "Unknown baseline: {}".format(opts.baseline)
         baseline = NoBaseline()

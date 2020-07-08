@@ -5,20 +5,21 @@ from utils.boolmask import mask_long2bool, mask_long_scatter
 
 class StateTSP(NamedTuple):
     # Fixed input
-    loc: torch.Tensor
-    dist: torch.Tensor
+    # This is just type hints, not requirements!
+    loc: torch.Tensor  # loc (location) is training batch: (batch_size, graph_size, node_dim)
+    dist: torch.Tensor  # dist: distance[batch, first_node, second_node, distance]
 
     # If this state contains multiple copies (i.e. beam search) for the same instance, then for memory efficiency
     # the loc and dist tensors are not kept multiple times, so we need to use the ids to index the correct rows.
-    ids: torch.Tensor  # Keeps track of original fixed data index of rows
+    ids: torch.Tensor  # Keeps track of original fixed data index of rows  # vertical arange function (batch_size, 1)
 
     # State
-    first_a: torch.Tensor
-    prev_a: torch.Tensor
-    visited_: torch.Tensor  # Keeps track of nodes that have been visited
-    lengths: torch.Tensor
-    cur_coord: torch.Tensor
-    i: torch.Tensor  # Keeps track of step
+    first_a: torch.Tensor  # (batch_size, 1)
+    prev_a: torch.Tensor  # (batch_size, 1)
+    visited_: torch.Tensor  # Keeps track of nodes that have been visited  # (batch_size, 1, graph_size)
+    lengths: torch.Tensor  # (batch_size, 1)
+    cur_coord: torch.Tensor  # None
+    i: torch.Tensor  # Keeps track of step  # (1)
 
     @property
     def visited(self):
@@ -42,12 +43,13 @@ class StateTSP(NamedTuple):
     @staticmethod
     def initialize(loc, visited_dtype=torch.uint8):
 
+        # loc (location) is training batch: (batch_size, graph_size, node_dim)
         batch_size, n_loc, _ = loc.size()
         prev_a = torch.zeros(batch_size, 1, dtype=torch.long, device=loc.device)
         return StateTSP(
             loc=loc,
-            dist=(loc[:, :, None, :] - loc[:, None, :, :]).norm(p=2, dim=-1),
-            ids=torch.arange(batch_size, dtype=torch.int64, device=loc.device)[:, None],  # Add steps dimension
+            dist=(loc[:, :, None, :] - loc[:, None, :, :]).norm(p=2, dim=-1),  # dist: distance[batch, first_node, second_node, distance]
+            ids=torch.arange(batch_size, dtype=torch.int64, device=loc.device)[:, None],  # Add steps dimension # a vertical vector
             first_a=prev_a,
             prev_a=prev_a,
             # Keep visited with depot so we can scatter efficiently (if there is an action for depot)
@@ -57,7 +59,7 @@ class StateTSP(NamedTuple):
                     dtype=torch.uint8, device=loc.device
                 )
                 if visited_dtype == torch.uint8
-                else torch.zeros(batch_size, 1, (n_loc + 63) // 64, dtype=torch.int64, device=loc.device)  # Ceil
+                else torch.zeros(batch_size, 1, (n_loc + 63) // 64, dtype=torch.int64, device=loc.device)  # Ceil # Just ignore it
             ),
             lengths=torch.zeros(batch_size, 1, device=loc.device),
             cur_coord=None,
@@ -100,7 +102,7 @@ class StateTSP(NamedTuple):
 
     def all_finished(self):
         # Exactly n steps
-        return self.i.item() >= self.loc.size(-2)
+        return self.i.item() >= self.loc.size(-2)  # step >= graph_size
 
     def get_current_node(self):
         return self.prev_a

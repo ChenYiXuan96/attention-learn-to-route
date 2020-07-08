@@ -230,13 +230,14 @@ class AttentionModel(nn.Module):
         state = self.problem.make_state(input)
 
         # Compute keys, values for the glimpse and keys for the logits once as they can be reused in every step
-        fixed = self._precompute(embeddings)
+        fixed = self._precompute(embeddings)  # list of namedtuples, as shown in attention model fixed line 20
 
-        batch_size = state.ids.size(0)
+        batch_size = state.ids.size(0)  # batch_size
 
         # Perform decoding steps
         i = 0
         while not (self.shrink_size is None and state.all_finished()):
+            # shrink_size is always None, all_finished == True when step >= graph_size
 
             if self.shrink_size is not None:
                 unfinished = torch.nonzero(state.get_finished() == 0)
@@ -311,22 +312,23 @@ class AttentionModel(nn.Module):
             assert False, "Unknown decode type"
         return selected
 
-    def _precompute(self, embeddings, num_steps=1):
+    def _precompute(self, embeddings, num_steps=1):  # seldom see num_step != 1
 
         # The fixed context projection of the graph embedding is calculated only once for efficiency
-        graph_embed = embeddings.mean(1)
+        graph_embed = embeddings.mean(1)  # Guess: embeddings: (batch_size, graph_size, embedding_dim)
         # fixed context = (batch_size, 1, embed_dim) to make broadcastable with parallel timesteps
-        fixed_context = self.project_fixed_context(graph_embed)[:, None, :]
+        fixed_context = self.project_fixed_context(graph_embed)[:, None, :]  # projected graph_embed
 
         # The projection of the node embeddings for the attention is calculated once up front
         glimpse_key_fixed, glimpse_val_fixed, logit_key_fixed = \
             self.project_node_embeddings(embeddings[:, None, :, :]).chunk(3, dim=-1)
+        # All three tensors: (batch_size, 1, graph_size, embedding_dim)
 
         # No need to rearrange key for logit as there is a single head
         fixed_attention_node_data = (
-            self._make_heads(glimpse_key_fixed, num_steps),
-            self._make_heads(glimpse_val_fixed, num_steps),
-            logit_key_fixed.contiguous()
+            self._make_heads(glimpse_key_fixed, num_steps),  # (n_heads, batch_size, num_steps, graph_size, head_dim)
+            self._make_heads(glimpse_val_fixed, num_steps),  # (n_heads, batch_size, num_steps, graph_size, head_dim)
+            logit_key_fixed.contiguous()  # contiguous in memory, i.e. the shape remains unchanged and in the same order
         )
         return AttentionModelFixed(embeddings, fixed_context, *fixed_attention_node_data)
 
