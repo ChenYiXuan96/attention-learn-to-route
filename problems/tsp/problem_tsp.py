@@ -67,6 +67,7 @@ class TSPDataset(Dataset):
         else:
             # Sample points randomly in [0, 1] square
             self.data = [torch.FloatTensor(size, 2).uniform_(0, 1) for i in range(num_samples)]
+            # size refers to graph size
 
         self.size = len(self.data)
 
