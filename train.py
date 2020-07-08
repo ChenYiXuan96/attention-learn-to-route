@@ -30,13 +30,13 @@ def validate(model, dataset, opts):
 def rollout(model, dataset, opts):
     # Put in greedy evaluation mode!
     set_decode_type(model, "greedy")
-    model.eval()
+    model.eval()  # equivalent to model.train(False)
 
     def eval_model_bat(bat):
-        with torch.no_grad():
-            cost, _ = model(move_to(bat, opts.device))
+        with torch.no_grad():  # no_grad normally pair with model.eval()
+            cost, _ = model(move_to(bat, opts.device))  # _ is log likelihood
         return cost.data.cpu()
-
+    # bat below is a list, and each element is a torch.FloatTensor(size, 2), where size is graph_size
     return torch.cat([
         eval_model_bat(bat)
         for bat

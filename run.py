@@ -39,9 +39,10 @@ def run(opts):
     opts.device = torch.device("cuda:0" if opts.use_cuda else "cpu")
 
     # Figure out what's the problem
-    problem = load_problem(opts.problem)
+    problem = load_problem(opts.problem)  # Here the problem is a class!
 
     # Load data from load_path
+    # Just ignore load and resume at first...
     load_data = {}
     assert opts.load_path is None or opts.resume is None, "Only one of load path and resume can be given"
     load_path = opts.load_path if opts.load_path is not None else opts.resume
@@ -53,7 +54,7 @@ def run(opts):
     model_class = {
         'attention': AttentionModel,
         'pointer': PointerNetwork
-    }.get(opts.model, None)
+    }.get(opts.model, None)  # Here is also a class.
     assert model_class is not None, "Unknown model: {}".format(model_class)
     model = model_class(
         opts.embedding_dim,
@@ -70,8 +71,12 @@ def run(opts):
 
     if opts.use_cuda and torch.cuda.device_count() > 1:
         model = torch.nn.DataParallel(model)
+        # model = torch.nn.parallel.DistributedDataParallel(model)  # suggested by the doc
+        # DistributedDataParallel is proven to be significantly faster than torch.nn.DataParallel
+        # for single-node multi-GPU data parallel training.
 
     # Overwrite model parameters by parameters to load
+    # Just ignore load at first...
     model_ = get_inner_model(model)
     model_.load_state_dict({**model_.state_dict(), **load_data.get('model', {})})
 
@@ -100,7 +105,7 @@ def run(opts):
                 )
             ).to(opts.device)
         )
-    elif opts.baseline == 'rollout':
+    elif opts.baseline == 'rollout':  # understand this branch at first
         baseline = RolloutBaseline(model, problem, opts)
     else:
         assert opts.baseline is None, "Unknown baseline: {}".format(opts.baseline)

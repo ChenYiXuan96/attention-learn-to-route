@@ -163,12 +163,14 @@ class RolloutBaseline(Baseline):
                 dataset = None
 
         if dataset is None:
+            # this runs while initializing
             self.dataset = self.problem.make_dataset(
                 size=self.opts.graph_size, num_samples=self.opts.val_size, distribution=self.opts.data_distribution)
+            # Variables of dataset: data and data_set
         else:
             self.dataset = dataset
         print("Evaluating baseline model on evaluation dataset")
-        self.bl_vals = rollout(self.model, self.dataset, self.opts).cpu().numpy()
+        self.bl_vals = rollout(self.model, self.dataset, self.opts).cpu().numpy()  # What is this?
         self.mean = self.bl_vals.mean()
         self.epoch = epoch
 
