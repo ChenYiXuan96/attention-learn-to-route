@@ -22,11 +22,11 @@ class AttentionModelFixed(NamedTuple):
     Context for AttentionModel decoder that is fixed during decoding so can be precomputed/cached
     This class allows for efficient indexing of multiple Tensors at once
     """
-    node_embeddings: torch.Tensor
-    context_node_projected: torch.Tensor
-    glimpse_key: torch.Tensor
-    glimpse_val: torch.Tensor
-    logit_key: torch.Tensor
+    node_embeddings: torch.Tensor  # (batch_size, graph_size, embedding_dim) node_embed
+    context_node_projected: torch.Tensor  # (batch_size, 1, embed_dim) projected graph_embed
+    glimpse_key: torch.Tensor  # (n_heads, batch_size, num_steps, graph_size, head_dim) key
+    glimpse_val: torch.Tensor  # (n_heads, batch_size, num_steps, graph_size, head_dim) val
+    logit_key: torch.Tensor  # (batch_size, 1, graph_size, embedding_dim) query
 
     def __getitem__(self, key):
         if torch.is_tensor(key) or isinstance(key, slice):
@@ -130,15 +130,18 @@ class AttentionModel(nn.Module):
         :return:
         """
 
+        # Encoding...
         if self.checkpoint_encoder and self.training:  # Only checkpoint if we need gradients
             embeddings, _ = checkpoint(self.embedder, self._init_embed(input))
         else:
             embeddings, _ = self.embedder(self._init_embed(input))
 
+        # Decoding...
         _log_p, pi = self._inner(input, embeddings)
 
+        # evaluating...
         cost, mask = self.problem.get_costs(input, pi)
-        # Log likelyhood is calculated within the model since returning it per action does not work well with
+        # Log likelihood is calculated within the model since returning it per action does not work well with
         # DataParallel since sequences can be of different lengths
         ll = self._calc_log_likelihood(_log_p, pi, mask)
         if return_pi:
@@ -230,7 +233,8 @@ class AttentionModel(nn.Module):
         state = self.problem.make_state(input)
 
         # Compute keys, values for the glimpse and keys for the logits once as they can be reused in every step
-        fixed = self._precompute(embeddings)  # list of namedtuples, as shown in attention model fixed line 20
+        fixed = self._precompute(embeddings)
+        # list of Namedtuples(fixed per batch), as shown in attention model fixed line 20
 
         batch_size = state.ids.size(0)  # batch_size
 
@@ -377,7 +381,7 @@ class AttentionModel(nn.Module):
         :return: (batch_size, num_steps, context_dim)
         """
 
-        current_node = state.get_current_node()
+        current_node = state.get_current_node()  # (batch_size, 1)
         batch_size, num_steps = current_node.size()
 
         if self.is_vrp:
@@ -441,6 +445,8 @@ class AttentionModel(nn.Module):
                 1,
                 current_node[:, 1:, None].expand(batch_size, num_steps - 1, embeddings.size(-1))
             )
+
+            # W_placeholder (2 * embed_dim)
             return torch.cat((
                 # First step placeholder, cat in dim 1 (time steps)
                 self.W_placeholder[None, None, :].expand(batch_size, 1, self.W_placeholder.size(-1)),

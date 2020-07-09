@@ -105,6 +105,7 @@ class StateTSP(NamedTuple):
         return self.i.item() >= self.loc.size(-2)  # step >= graph_size
 
     def get_current_node(self):
+        # (batch_size, 1)
         return self.prev_a
 
     def get_mask(self):
