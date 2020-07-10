@@ -93,6 +93,8 @@ class StateTSP(NamedTuple):
 
         if self.visited_.dtype == torch.uint8:
             # Add one dimension since we write a single value
+            # visited_: (batch_size, 1, graph_size)
+            # prev_a: (batch_size, 1)
             visited_ = self.visited_.scatter(-1, prev_a[:, :, None], 1)
         else:
             visited_ = mask_long_scatter(self.visited_, prev_a)
@@ -109,6 +111,7 @@ class StateTSP(NamedTuple):
         return self.prev_a
 
     def get_mask(self):
+        # visited: (batch_size, 1, n_loc), where 0 indicates unvisited, 1 indicates visited
         return self.visited > 0  # Hacky way to return bool or uint8 depending on pytorch version
 
     def get_nn(self, k=None):

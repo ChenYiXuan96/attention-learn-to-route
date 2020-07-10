@@ -26,7 +26,7 @@ class AttentionModelFixed(NamedTuple):
     context_node_projected: torch.Tensor  # (batch_size, 1, embed_dim) projected graph_embed
     glimpse_key: torch.Tensor  # (n_heads, batch_size, num_steps, graph_size, head_dim) key
     glimpse_val: torch.Tensor  # (n_heads, batch_size, num_steps, graph_size, head_dim) val
-    logit_key: torch.Tensor  # (batch_size, 1, graph_size, embedding_dim) query
+    logit_key: torch.Tensor  # (batch_size, 1, graph_size, embedding_dim) query (?)
 
     def __getitem__(self, key):
         if torch.is_tensor(key) or isinstance(key, slice):
@@ -36,6 +36,8 @@ class AttentionModelFixed(NamedTuple):
                 glimpse_key=self.glimpse_key[:, key],  # dim 0 are the heads
                 glimpse_val=self.glimpse_val[:, key],  # dim 0 are the heads
                 logit_key=self.logit_key[key]
+                # glimpse_key and logit_key are all keys in equation (6) in the paper,
+                # but in different steps
             )
         return super(AttentionModelFixed, self).__getitem__(key)
 
@@ -256,6 +258,8 @@ class AttentionModel(nn.Module):
                     fixed = fixed[unfinished]
 
             log_p, mask = self._get_log_p(fixed, state)
+            # log_p (batch_size, 1, graph_size)
+            # mask (batch_size, 1, graph_size)
 
             # Select the indices of the next nodes in the sequences, result (batch_size) long
             selected = self._select_node(log_p.exp()[:, 0, :], mask[:, 0, :])  # Squeeze out steps dimension
@@ -263,6 +267,7 @@ class AttentionModel(nn.Module):
             state = state.update(selected)
 
             # Now make log_p, selected desired output size by 'unshrinking'
+            # shrink_size is None at the first attempt, so this part can be ignored.
             if self.shrink_size is not None and state.ids.size(0) < batch_size:
                 log_p_, selected_ = log_p, selected
                 log_p = log_p_.new_zeros(batch_size, *log_p_.size()[1:])
@@ -352,17 +357,23 @@ class AttentionModel(nn.Module):
     def _get_log_p(self, fixed, state, normalize=True):
 
         # Compute query = context node embedding
+        # _get_parallel_step_context returns (batch_size, 1 <- (num_step), context_dim <- (embed_dim * 2))
+        # project_step_context returns (batch_size, 1, embed_dim) -> projected prev_a and first_a
         query = fixed.context_node_projected + \
                 self.project_step_context(self._get_parallel_step_context(fixed.node_embeddings, state))
+        # query: (batch_size, 1, embed_dim)
 
         # Compute keys and values for the nodes
         glimpse_K, glimpse_V, logit_K = self._get_attention_node_data(fixed, state)
 
         # Compute the mask
+        # visited: (batch_size, 1, n_loc), where False indicates unvisited, True indicates visited
         mask = state.get_mask()
 
         # Compute logits (unnormalized log_p)
         log_p, glimpse = self._one_to_many_logits(query, glimpse_K, glimpse_V, logit_K, mask)
+        # log_p (batch_size, 1, graph_size)
+        # glimpse (batch_size, num_steps, embed_dim) # Useless here cuz projected twice
 
         if normalize:
             log_p = torch.log_softmax(log_p / self.temp, dim=-1)
@@ -436,6 +447,14 @@ class AttentionModel(nn.Module):
                     # First and only step, ignore prev_a (this is a placeholder)
                     return self.W_placeholder[None, None, :].expand(batch_size, 1, self.W_placeholder.size(-1))
                 else:
+                    # state.first_a (batch_size, 1)
+                    # current_node (batch_size, 1)
+                    # codes below are kinda hard to understand. Here are some tips:
+                    # torch.cat -> (batch_size, (first_a, current_node), duplicate over dim_embed)
+                    # embeddings (batch_size, graph_size, dim_embed)
+                    # index array has different shape with input, and the output corresponds with the index
+                    # gather -> (batch_size, 2, dim_embed)
+                    # view -> (batch_size, 1, 2 * dim_embed)
                     return embeddings.gather(
                         1,
                         torch.cat((state.first_a, current_node), 1)[:, :, None].expand(batch_size, 2, embeddings.size(-1))
@@ -458,37 +477,55 @@ class AttentionModel(nn.Module):
             ), 1)
 
     def _one_to_many_logits(self, query, glimpse_K, glimpse_V, logit_K, mask):
-
+        """
+        # glimpse_key: torch.Tensor  # (n_heads, batch_size, num_steps, graph_size, head_dim) key
+        # glimpse_val: torch.Tensor  # (n_heads, batch_size, num_steps, graph_size, head_dim) val
+        # logit_key: torch.Tensor  # (batch_size, 1, graph_size, embedding_dim) query (?)
+        # query: (batch_size, 1, embed_dim)
+        # mask: (batch_size, 1, n_loc), where False indicates unvisited, True indicates visited
+        """
         batch_size, num_steps, embed_dim = query.size()
         key_size = val_size = embed_dim // self.n_heads
+        # key_size = head_dim
 
-        # Compute the glimpse, rearrange dimensions so the dimensions are (n_heads, batch_size, num_steps, 1, key_size)
+        # Compute the glimpse, rearrange dimensions so the dimensions are
+        # (n_heads, batch_size, num_steps, 1, key_size)
         glimpse_Q = query.view(batch_size, num_steps, self.n_heads, 1, key_size).permute(2, 0, 1, 3, 4)
 
-        # Batch matrix multiplication to compute compatibilities (n_heads, batch_size, num_steps, graph_size)
+        # Batch matrix multiplication to compute compatibilities
+        # (n_heads, batch_size, num_steps, graph_size)
+        # the size above is given officially, yet I guess it is
+        # (n_heads, batch_size, num_steps, 1, graph_size) instead
         compatibility = torch.matmul(glimpse_Q, glimpse_K.transpose(-2, -1)) / math.sqrt(glimpse_Q.size(-1))
+        # mask_inner is defaultly true
         if self.mask_inner:
             assert self.mask_logits, "Cannot mask inner without masking logits"
             compatibility[mask[None, :, :, None, :].expand_as(compatibility)] = -math.inf
 
         # Batch matrix multiplication to compute heads (n_heads, batch_size, num_steps, val_size)
+        # Again, (n_heads, batch_size, num_steps, 1, val_size)
         heads = torch.matmul(torch.softmax(compatibility, dim=-1), glimpse_V)
 
         # Project to get glimpse/updated context node embedding (batch_size, num_steps, embedding_dim)
+        # After permute: (batch_size, num_steps, 1, n_heads, val_size)
         glimpse = self.project_out(
             heads.permute(1, 2, 3, 0, 4).contiguous().view(-1, num_steps, 1, self.n_heads * val_size))
+        # glimpse: (batch_size, num_steps, 1, embed_dim)
 
         # Now projecting the glimpse is not needed since this can be absorbed into project_out
         # final_Q = self.project_glimpse(glimpse)
         final_Q = glimpse
         # Batch matrix multiplication to compute logits (batch_size, num_steps, graph_size)
         # logits = 'compatibility'
+        # final_Q: (batch_size, num_steps, 1, embed_dim)
+        # logit_K.transpose: (batch_size, 1, embedding_dim, graph_size)
         logits = torch.matmul(final_Q, logit_K.transpose(-2, -1)).squeeze(-2) / math.sqrt(final_Q.size(-1))
+        # logits (batch_size, 1, graph_size)
 
         # From the logits compute the probabilities by clipping, masking and softmax
         if self.tanh_clipping > 0:
-            logits = torch.tanh(logits) * self.tanh_clipping
-        if self.mask_logits:
+            logits = torch.tanh(logits) * self.tanh_clipping  # tanh_clipping is C in the paper appendix A
+        if self.mask_logits:  # always True
             logits[mask] = -math.inf
 
         return logits, glimpse.squeeze(-2)
