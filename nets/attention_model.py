@@ -263,6 +263,7 @@ class AttentionModel(nn.Module):
 
             # Select the indices of the next nodes in the sequences, result (batch_size) long
             selected = self._select_node(log_p.exp()[:, 0, :], mask[:, 0, :])  # Squeeze out steps dimension
+            # selected: (batch_size,)
 
             state = state.update(selected)
 
@@ -277,8 +278,10 @@ class AttentionModel(nn.Module):
                 selected[state.ids[:, 0]] = selected_
 
             # Collect output of step
-            outputs.append(log_p[:, 0, :])
+            outputs.append(log_p[:, 0, :])  # Just squeeze out the dimension of length 1
+            # (batch_size, graph_size)
             sequences.append(selected)
+            # (batch_size,)
 
             i += 1
 
@@ -300,20 +303,25 @@ class AttentionModel(nn.Module):
         )
 
     def _select_node(self, probs, mask):
-
+        # prob: (batch_size, graph_size)
+        # mask: (batch_size, graph_size)
         assert (probs == probs).all(), "Probs should not contain any nans"
 
         if self.decode_type == "greedy":
+            # (values, indices) <- return
             _, selected = probs.max(1)
+            # selected: (batch_size,)
             assert not mask.gather(1, selected.unsqueeze(
                 -1)).data.any(), "Decode greedy: infeasible action has maximum probability"
 
         elif self.decode_type == "sampling":
             selected = probs.multinomial(1).squeeze(1)
+            # selected (batch_size,)
 
             # Check if sampling went OK, can go wrong due to bug on GPU
             # See https://discuss.pytorch.org/t/bad-behavior-of-multinomial-function/10232
             while mask.gather(1, selected.unsqueeze(-1)).data.any():
+                # if samples are masked...
                 print('Sampled bad values, resampling!')
                 selected = probs.multinomial(1).squeeze(1)
 

@@ -61,7 +61,7 @@ class StateTSP(NamedTuple):
                 if visited_dtype == torch.uint8
                 else torch.zeros(batch_size, 1, (n_loc + 63) // 64, dtype=torch.int64, device=loc.device)  # Ceil # Just ignore it
             ),
-            lengths=torch.zeros(batch_size, 1, device=loc.device),
+            lengths=torch.zeros(batch_size, 1, device=loc.device),  #lengths of the routes up to now
             cur_coord=None,
             i=torch.zeros(1, dtype=torch.int64, device=loc.device)  # Vector with length num_steps
         )
@@ -83,7 +83,7 @@ class StateTSP(NamedTuple):
         #     1,
         #     selected[:, None, None].expand(selected.size(0), 1, self.loc.size(-1))
         # )[:, 0, :]
-        cur_coord = self.loc[self.ids, prev_a]
+        cur_coord = self.loc[self.ids, prev_a]  # Guess: it's the coordinates of the previous node (verified)
         lengths = self.lengths
         if self.cur_coord is not None:  # Don't add length for first action (selection of start node)
             lengths = self.lengths + (cur_coord - self.cur_coord).norm(p=2, dim=-1)  # (batch_dim, 1)
@@ -91,6 +91,7 @@ class StateTSP(NamedTuple):
         # Update should only be called with just 1 parallel step, in which case we can check this way if we should update
         first_a = prev_a if self.i.item() == 0 else self.first_a
 
+        # update visited, i.e. put the visited node to 1...
         if self.visited_.dtype == torch.uint8:
             # Add one dimension since we write a single value
             # visited_: (batch_size, 1, graph_size)
