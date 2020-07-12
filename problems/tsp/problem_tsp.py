@@ -12,17 +12,22 @@ class TSP(object):
 
     @staticmethod
     def get_costs(dataset, pi):
+        # dataset: (batch_size, graph_size, node_dim)
+        # pi: (batch_size, graph_size)
         # Check that tours are valid, i.e. contain 0 to n -1
         assert (
             torch.arange(pi.size(1), out=pi.data.new()).view(1, -1).expand_as(pi) ==
             pi.data.sort(1)[0]
         ).all(), "Invalid tour"
+        # 'out' here is used to make the data format and the data type of the new tensor align with the old one.
 
         # Gather dataset in order of tour
         d = dataset.gather(1, pi.unsqueeze(-1).expand_as(dataset))
+        # d (batch_size, graph_size, node_dim)
 
-        # Length is distance (L2-norm of difference) from each next location from its prev and of last from first
+        # Length is distance (L2-norm of difference) of each next location from its prev and of last from first
         return (d[:, 1:] - d[:, :-1]).norm(p=2, dim=2).sum(1) + (d[:, 0] - d[:, -1]).norm(p=2, dim=1), None
+        # return (batch_size,), None
 
     @staticmethod
     def make_dataset(*args, **kwargs):

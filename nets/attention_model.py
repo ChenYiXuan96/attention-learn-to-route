@@ -140,9 +140,13 @@ class AttentionModel(nn.Module):
 
         # Decoding...
         _log_p, pi = self._inner(input, embeddings)
+        # return (batch_size, graph_size * graph_size), (batch_size, graph_size)
+        # pi is the solution route
 
         # evaluating...
         cost, mask = self.problem.get_costs(input, pi)
+        # (batch_size,), None # So mask is useless here
+
         # Log likelihood is calculated within the model since returning it per action does not work well with
         # DataParallel since sequences can be of different lengths
         ll = self._calc_log_likelihood(_log_p, pi, mask)
@@ -287,6 +291,7 @@ class AttentionModel(nn.Module):
 
         # Collected lists, return Tensor
         return torch.stack(outputs, 1), torch.stack(sequences, 1)
+        # return (batch_size, graph_size * length of the solution(i.e., graph_size)), (batch_size, graph_size)
 
     def sample_many(self, input, batch_rep=1, iter_rep=1):
         """
