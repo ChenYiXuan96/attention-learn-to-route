@@ -140,7 +140,7 @@ class AttentionModel(nn.Module):
 
         # Decoding...
         _log_p, pi = self._inner(input, embeddings)
-        # return (batch_size, graph_size * graph_size), (batch_size, graph_size)
+        # return (batch_size, graph_size, graph_size), (batch_size, graph_size)
         # pi is the solution route
 
         # evaluating...
@@ -150,6 +150,7 @@ class AttentionModel(nn.Module):
         # Log likelihood is calculated within the model since returning it per action does not work well with
         # DataParallel since sequences can be of different lengths
         ll = self._calc_log_likelihood(_log_p, pi, mask)
+        # ll(log likelihood): (batch_size,)
         if return_pi:
             return cost, ll, pi
 
@@ -195,9 +196,12 @@ class AttentionModel(nn.Module):
         return flat_parent[feas_ind], flat_action[feas_ind], flat_score[feas_ind]
 
     def _calc_log_likelihood(self, _log_p, a, mask):
-
+        # _log_p: (batch_size, graph_size, graph_size)
+        # a (pi): (batch_size, graph_size)
+        # mask: None
         # Get log_p corresponding to selected actions
         log_p = _log_p.gather(2, a.unsqueeze(-1)).squeeze(-1)
+        # log_p: (batch_size, graph_size)
 
         # Optional: mask out actions irrelevant to objective so they do not get reinforced
         if mask is not None:
@@ -206,7 +210,7 @@ class AttentionModel(nn.Module):
         assert (log_p > -1000).data.all(), "Logprobs should not be -inf, check sampling procedure!"
 
         # Calculate log_likelihood
-        return log_p.sum(1)
+        return log_p.sum(1)  # sum cuz it's log_p rather than p # return: (batch_size,)
 
     def _init_embed(self, input):
 
@@ -291,7 +295,8 @@ class AttentionModel(nn.Module):
 
         # Collected lists, return Tensor
         return torch.stack(outputs, 1), torch.stack(sequences, 1)
-        # return (batch_size, graph_size * length of the solution(i.e., graph_size)), (batch_size, graph_size)
+        # Pay attention to the difference between stack and concat!
+        # return (batch_size, graph_size, graph_size), (batch_size, graph_size)
 
     def sample_many(self, input, batch_rep=1, iter_rep=1):
         """
