@@ -16,6 +16,7 @@ from nets.attention_model import AttentionModel
 from nets.pointer_network import PointerNetwork, CriticNetworkLSTM
 from utils import torch_load_cpu, load_problem
 
+# In pytorch, if a function ends with _, it means that it modifies sth in-place.
 
 def run(opts):
 
@@ -111,10 +112,20 @@ def run(opts):
         assert opts.baseline is None, "Unknown baseline: {}".format(opts.baseline)
         baseline = NoBaseline()
 
+    # baseline:
+    # self.problem  CLASS
+    # self.opts
+    # self.model
+    # self.dataset  (val_size, graph_size, node_dim)
+    # self.bl_vals  (val_size,)
+    # self.mean     float-like Tensor
+    # self.epoch    int
+
     if opts.bl_warmup_epochs > 0:
         baseline = WarmupBaseline(baseline, opts.bl_warmup_epochs, warmup_exp_beta=opts.exp_beta)
 
     # Load baseline from data, make sure script is called with same type of baseline
+    # Load is ignored at first
     if 'baseline' in load_data:
         baseline.load_state_dict(load_data['baseline'])
 
@@ -123,12 +134,13 @@ def run(opts):
         [{'params': model.parameters(), 'lr': opts.lr_model}]
         + (
             [{'params': baseline.get_learnable_parameters(), 'lr': opts.lr_critic}]
-            if len(baseline.get_learnable_parameters()) > 0
+            if len(baseline.get_learnable_parameters()) > 0  # no learnable parameters if no critic
             else []
         )
     )
 
     # Load optimizer state
+    # ignored at first
     if 'optimizer' in load_data:
         optimizer.load_state_dict(load_data['optimizer'])
         for state in optimizer.state.values():
@@ -139,8 +151,10 @@ def run(opts):
 
     # Initialize learning rate scheduler, decay by lr_decay once per epoch!
     lr_scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: opts.lr_decay ** epoch)
+    # work by lr_scheduler.step()
 
     # Start the actual training loop
+    # val_dataset is fixed during training
     val_dataset = problem.make_dataset(
         size=opts.graph_size, num_samples=opts.val_size, filename=opts.val_dataset, distribution=opts.data_distribution)
 

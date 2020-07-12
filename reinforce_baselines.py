@@ -141,6 +141,15 @@ class CriticBaseline(Baseline):
 
 
 class RolloutBaseline(Baseline):
+    """
+    self.problem  CLASS
+    self.opts
+    self.model
+    self.dataset  (val_size, graph_size, node_dim)
+    self.bl_vals  (val_size,)
+    self.mean     float-like Tensor
+    self.epoch    int
+    """
 
     def __init__(self, model, problem, opts, epoch=0):
         super(Baseline, self).__init__()
@@ -166,13 +175,17 @@ class RolloutBaseline(Baseline):
             # this runs while initializing
             self.dataset = self.problem.make_dataset(
                 size=self.opts.graph_size, num_samples=self.opts.val_size, distribution=self.opts.data_distribution)
-            # Variables of dataset: data and data_set
+            # Variables of dataset: data(*) and data_set
         else:
             self.dataset = dataset
+        # dataset: (val_size, graph_size, node_dim)
+        # batch given by dataset: (batch_size, graph_size, node_dim)
+
         print("Evaluating baseline model on evaluation dataset")
-        self.bl_vals = rollout(self.model, self.dataset, self.opts).cpu().numpy()  # What is this?
+        self.bl_vals = rollout(self.model, self.dataset, self.opts).cpu().numpy()
+        # bl_vals(baseline validates): (val_size,)
         self.mean = self.bl_vals.mean()
-        self.epoch = epoch
+        self.epoch = epoch  # 0 if initializing
 
     def wrap_dataset(self, dataset):
         print("Evaluating baseline on dataset...")

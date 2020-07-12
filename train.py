@@ -35,13 +35,17 @@ def rollout(model, dataset, opts):
     def eval_model_bat(bat):
         with torch.no_grad():  # no_grad normally pair with model.eval()
             cost, _ = model(move_to(bat, opts.device))  # _ is log likelihood
+            # cost: (batch_size,)
         return cost.data.cpu()
-    # bat below is a list, and each element is a torch.FloatTensor(size, 2), where size is graph_size
+    # bat below is a list-like tensor, and each element is a torch.FloatTensor(batch_size, 2)
+    # the number of samples in dataset is val_size
+    # batches are picked without replacement
     return torch.cat([
         eval_model_bat(bat)
         for bat
         in tqdm(DataLoader(dataset, batch_size=opts.eval_batch_size), disable=opts.no_progress_bar)
     ], 0)
+    # return: (val_size,)
 
 
 def clip_grad_norms(param_groups, max_norm=math.inf):
@@ -61,21 +65,24 @@ def clip_grad_norms(param_groups, max_norm=math.inf):
         for group in param_groups
     ]
     grad_norms_clipped = [min(g_norm, max_norm) for g_norm in grad_norms] if max_norm > 0 else grad_norms
-    return grad_norms, grad_norms_clipped
+    return grad_norms, grad_norms_clipped # Are they totally the same ??
 
 
 def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, problem, tb_logger, opts):
     print("Start train epoch {}, lr={} for run {}".format(epoch, optimizer.param_groups[0]['lr'], opts.run_name))
     step = epoch * (opts.epoch_size // opts.batch_size)
+    # step is the overall number of batches trained
     start_time = time.time()
 
     if not opts.no_tensorboard:
         tb_logger.log_value('learnrate_pg0', optimizer.param_groups[0]['lr'], step)
+        # param_group 0 refers to actor
 
-    # Generate new training data for each epoch
+    # Generate NEW training data for each epoch
     training_dataset = baseline.wrap_dataset(problem.make_dataset(
         size=opts.graph_size, num_samples=opts.epoch_size, distribution=opts.data_distribution))
     training_dataloader = DataLoader(training_dataset, batch_size=opts.batch_size, num_workers=1)
+    # training_dataloader: (epoch_size, graph_size, node_dim)
 
     # Put model in train mode!
     model.train()
@@ -98,8 +105,10 @@ def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, pr
         step += 1
 
     epoch_duration = time.time() - start_time
+    # When you want HH:MM:SS rather than only secs...
     print("Finished epoch {}, took {} s".format(epoch, time.strftime('%H:%M:%S', time.gmtime(epoch_duration))))
 
+    # Save checkpoints...
     if (opts.checkpoint_epochs != 0 and epoch % opts.checkpoint_epochs == 0) or epoch == opts.n_epochs - 1:
         print('Saving model and state...')
         torch.save(
@@ -118,6 +127,7 @@ def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, pr
     if not opts.no_tensorboard:
         tb_logger.log_value('val_avg_reward', avg_reward, step)
 
+    # update baseline...
     baseline.epoch_callback(model, epoch)
 
     # lr_scheduler should be called at end of epoch
@@ -135,12 +145,14 @@ def train_batch(
         tb_logger,
         opts
 ):
+    # batch: (batch_size, graph_size, node_dim)
     x, bl_val = baseline.unwrap_batch(batch)
     x = move_to(x, opts.device)
     bl_val = move_to(bl_val, opts.device) if bl_val is not None else None
 
     # Evaluate model, get costs and log probabilities
     cost, log_likelihood = model(x)
+    # (batch_size,), (batch_size,)
 
     # Evaluate baseline, get baseline loss if any (only for critic)
     bl_val, bl_loss = baseline.eval(x, cost) if bl_val is None else (bl_val, 0)
