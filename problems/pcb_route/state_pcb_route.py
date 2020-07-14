@@ -38,7 +38,7 @@ class StatePcbRoute(NamedTuple):
                 lengths=self.lengths[key],
                 cur_coord=self.cur_coord[key] if self.cur_coord is not None else None,
             )
-        return super(StateTSP, self).__getitem__(key)
+        return super(StatePcbRoute, self).__getitem__(key)
 
     @staticmethod
     def initialize(loc, visited_dtype=torch.uint8):
@@ -46,7 +46,7 @@ class StatePcbRoute(NamedTuple):
         # loc (location) is training batch: (batch_size, graph_size, node_dim)
         batch_size, n_loc, _ = loc.size()
         prev_a = torch.zeros(batch_size, 1, dtype=torch.long, device=loc.device)
-        return StateTSP(
+        return StatePcbRoute(
             loc=loc,
             dist=(loc[:, :, None, :] - loc[:, None, :, :]).norm(p=2, dim=-1),  # dist: distance[batch, first_node, second_node, distance]
             ids=torch.arange(batch_size, dtype=torch.int64, device=loc.device)[:, None],  # Add steps dimension # a vertical vector
