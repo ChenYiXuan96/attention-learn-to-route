@@ -1,1 +1,15 @@
-python run.py --graph_size 10 --baseline rollout --batch_size 32 --epoch_size 128 --val_size 4 --embedding_dim 64 --hidden_dim 64 --n_epochs 20 --eval_batch_size 4 --run_name 'tsp10_rollout'
+python run.py --graph_size 10 --baseline rollout --batch_size 32 --epoch_size 128 --val_size 16 --embedding_dim 64 --hidden_dim 64 --n_epochs 20 --eval_batch_size 4 --run_name 'tsp10_rollout'
+
+# to run tensorboard UI
+tensorboard --logdir logs/tsp_10 (replace fit with the directory name you want to view)
+
+ideas on experiments:
+1. original paper:
+	use various problems (not applicable here), various problem size(*) and
+	various model. Various models have two parts: one is using different baselines(exponential, rollout, critic), the other is using different models(PN, AM, OR tools etc.). Comparison between different models with different baselines. Perhaps different training method.
+	Also, different docoding strategy. Greedy decoding models are compared together while sampling decoding models are in another group to compare.
+	Best possible solution for each model in 10000 test instances.
+
+	For speed, there are way too many values, but we should only pick up the most valuable parts.
+
+	Tables for hyper-parameters comparison, while figures for model comparison.
