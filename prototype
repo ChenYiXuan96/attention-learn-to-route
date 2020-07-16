@@ -13,3 +13,18 @@ ideas on experiments:
 	For speed, there are way too many values, but we should only pick up the most valuable parts.
 
 	Tables for hyper-parameters comparison, while figures for model comparison.
+
+Difference between classic combinatorial optimization problems and the pcb multiple routing problem:
+The classic combinatorial problems have limited constraints. In TSP, the only constraint is each node can be visited only once. This can be done via masking process. However, other constraints may not be solves easily by masking.
+	(Other problems not studied yet. Will do.)
+
+Analysis:
+	1. Check how other problems mentioned in the paper deal with constraints.
+	2. Consider applying backtracking to the decoder process.
+		Resample when producing an illegal partial route. If all the samples are illegal then resample the previous node.
+		All the training samples will be valid samples.
+	3. Penalize bad cases. Allow illegal cases to be alive but penalize it. This can only happen in training process. In validation all the samples produced by decoder should be legal.
+
+TODO:
+	1. Check how other problems mentioned in the paper deal with constraints.
+	2. Design two decoders, one using backtracking, the other using penalizing (for training only, only backtracking in testing). Compare their performance in experiment.
