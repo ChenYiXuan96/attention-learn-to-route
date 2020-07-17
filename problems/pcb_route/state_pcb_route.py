@@ -1,13 +1,13 @@
 import torch
 from typing import NamedTuple
 from utils.boolmask import mask_long2bool, mask_long_scatter
+import copt
 
 
 class StatePcbRoute(NamedTuple):
     # Fixed input
     # This is just type hints, not requirements!
     loc: torch.Tensor  # loc (location) is training batch: (batch_size, graph_size, node_dim)
-    dist: torch.Tensor  # dist: distance[batch, first_node, second_node, distance]
 
     # If this state contains multiple copies (i.e. beam search) for the same instance, then for memory efficiency
     # the loc and dist tensors are not kept multiple times, so we need to use the ids to index the correct rows.
@@ -17,8 +17,8 @@ class StatePcbRoute(NamedTuple):
     first_a: torch.Tensor  # (batch_size, 1)
     prev_a: torch.Tensor  # (batch_size, 1)
     visited_: torch.Tensor  # Keeps track of nodes that have been visited  # (batch_size, 1, graph_size)
-    lengths: torch.Tensor  # (batch_size, 1)
-    cur_coord: torch.Tensor  # None
+    # lengths: torch.Tensor  # (batch_size, 1)
+    # cur_coord: torch.Tensor  # None
     i: torch.Tensor  # Keeps track of step  # (1)
 
     @property
@@ -34,9 +34,9 @@ class StatePcbRoute(NamedTuple):
                 ids=self.ids[key],
                 first_a=self.first_a[key],
                 prev_a=self.prev_a[key],
-                visited_=self.visited_[key],
-                lengths=self.lengths[key],
-                cur_coord=self.cur_coord[key] if self.cur_coord is not None else None,
+                visited_=self.visited_[key]
+                # lengths=self.lengths[key],
+                # cur_coord=self.cur_coord[key] if self.cur_coord is not None else None,
             )
         return super(StatePcbRoute, self).__getitem__(key)
 
@@ -48,7 +48,7 @@ class StatePcbRoute(NamedTuple):
         prev_a = torch.zeros(batch_size, 1, dtype=torch.long, device=loc.device)
         return StatePcbRoute(
             loc=loc,
-            dist=(loc[:, :, None, :] - loc[:, None, :, :]).norm(p=2, dim=-1),  # dist: distance[batch, first_node, second_node, distance]
+            # dist=(loc[:, :, None, :] - loc[:, None, :, :]).norm(p=2, dim=-1),  # dist: distance[batch, first_node, second_node, distance]
             ids=torch.arange(batch_size, dtype=torch.int64, device=loc.device)[:, None],  # Add steps dimension # a vertical vector
             first_a=prev_a,
             prev_a=prev_a,
@@ -61,8 +61,8 @@ class StatePcbRoute(NamedTuple):
                 if visited_dtype == torch.uint8
                 else torch.zeros(batch_size, 1, (n_loc + 63) // 64, dtype=torch.int64, device=loc.device)  # Ceil # Just ignore it
             ),
-            lengths=torch.zeros(batch_size, 1, device=loc.device),  #lengths of the routes up to now
-            cur_coord=None,
+            # lengths=torch.zeros(batch_size, 1, device=loc.device),  #lengths of the routes up to now
+            # cur_coord=None,
             i=torch.zeros(1, dtype=torch.int64, device=loc.device)  # Vector with length num_steps
         )
 
@@ -71,7 +71,10 @@ class StatePcbRoute(NamedTuple):
         assert self.all_finished()
         # assert self.visited_.
 
-        return self.lengths + (self.loc[self.ids, self.first_a, :] - self.cur_coord).norm(p=2, dim=-1)
+        # the method will never be called
+        raise NotImplementedError
+
+        # return self.lengths + (self.loc[self.ids, self.first_a, :] - self.cur_coord).norm(p=2, dim=-1)
 
     def update(self, selected):
 

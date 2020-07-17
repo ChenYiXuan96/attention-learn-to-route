@@ -17,7 +17,7 @@ class StateTSP(NamedTuple):
     first_a: torch.Tensor  # (batch_size, 1)
     prev_a: torch.Tensor  # (batch_size, 1)
     visited_: torch.Tensor  # Keeps track of nodes that have been visited  # (batch_size, 1, graph_size)
-    lengths: torch.Tensor  # (batch_size, 1)
+    lengths: torch.Tensor  # (batch_size, 1) # the coordinates of the previous node (verified)
     cur_coord: torch.Tensor  # None
     i: torch.Tensor  # Keeps track of step  # (1)
 

@@ -3,13 +3,22 @@ import torch
 import os
 import pickle
 from problems.pcb_route.state_pcb_route import StatePcbRoute
+import copt
 from utils.beam_search import beam_search
 
 
 class PcbRoute(object):
     NAME = 'PcbRoute'
+
     @staticmethod
     def get_costs(dataset, pi):
+        """
+        # Currently, both invalid and valid tour can be evaluated. Later to switch to valid tour by backtracking.
+        # Valid or invalid here is determined by seeing whether it can route all the data pairs, but not every node
+        # is visited only once.
+        """
+
+        penalty = 1e5 * pi.size()[1]
         # dataset: (batch_size, graph_size, node_dim)
         # pi: (batch_size, graph_size)
         # Check that tours are valid, i.e. contain 0 to n -1
@@ -19,12 +28,15 @@ class PcbRoute(object):
         ).all(), "Invalid tour"
         # 'out' here is used to make the data format and the data type of the new tensor align with the old one.
 
-        # Gather dataset in order of tour
-        d = dataset.gather(1, pi.unsqueeze(-1).expand_as(dataset))
-        # d (batch_size, graph_size, node_dim)
+        costs = []
+        for problem, order in zip(dataset, pi):
+            eval_dict = copt.evaluate(problem, order)
+            if not eval_dict['success']:
+                costs.append(penalty)
+            else:
+                costs.append(eval_dict['measure'])
 
-        # Length is distance (L2-norm of difference) of each next location from its prev and of last from first
-        return (d[:, 1:] - d[:, :-1]).norm(p=2, dim=2).sum(1) + (d[:, 0] - d[:, -1]).norm(p=2, dim=1), None
+        return torch.tensor(costs), None
         # return (batch_size,), None
 
     @staticmethod
@@ -69,11 +81,12 @@ class PcbRouteDataset(Dataset):
         #     with open(filename, 'rb') as f:
         #         data = pickle.load(f)
         #         self.data = [torch.FloatTensor(row) for row in (data[offset:offset + num_samples])]
-        # else:
-        #     # Sample points randomly in [0, 1] square
-        #     self.data = [torch.FloatTensor(size, 2).uniform_(0, 1) for i in range(num_samples)]
-        #     # size refers to graph size
 
+        # Generate data before training...
+        # Not implemented yet
+
+        # Generate data on the fly...(can not be parallelized)
+        self.data = [torch.tensor(copt.getProblem(size)) for _ in range(num_samples)]
         self.size = len(self.data)
 
     def __len__(self):
