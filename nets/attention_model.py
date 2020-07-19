@@ -67,6 +67,7 @@ class AttentionModel(nn.Module):
         self.is_vrp = problem.NAME == 'cvrp' or problem.NAME == 'sdvrp'
         self.is_orienteering = problem.NAME == 'op'
         self.is_pctsp = problem.NAME == 'pctsp'
+        self.is_pcb_route = problem.NAME == 'PcbRoute'
 
         self.tanh_clipping = tanh_clipping
 
@@ -93,6 +94,13 @@ class AttentionModel(nn.Module):
             
             if self.is_vrp and self.allow_partial:  # Need to include the demand if split delivery allowed
                 self.project_node_step = nn.Linear(1, 3 * embedding_dim, bias=False)
+        elif self.is_pcb_route:  # PcbRoute
+            step_context_dim = 2 * embedding_dim
+            node_dim = 4
+
+            self.W_placeholder = nn.Parameter(torch.Tensor(2 * embedding_dim))
+            self.W_placeholder.data.uniform_(-1, 1)
+
         else:  # TSP
             assert problem.NAME == "tsp", "Unsupported problem: {}".format(problem.NAME)
             step_context_dim = 2 * embedding_dim  # Embedding of first and last node
@@ -236,7 +244,7 @@ class AttentionModel(nn.Module):
         return self.init_embed(input)
 
     def _inner(self, input, embeddings):
-
+        # (batch_size, graph_size, node_dim)
         outputs = []
         sequences = []
 
