@@ -87,9 +87,9 @@ class StatePcbRoute(NamedTuple):
         #     selected[:, None, None].expand(selected.size(0), 1, self.loc.size(-1))
         # )[:, 0, :]
         cur_coord = self.loc[self.ids, prev_a]  # Guess: it's the coordinates of the previous node (verified)
-        lengths = self.lengths
-        if self.cur_coord is not None:  # Don't add length for first action (selection of start node)
-            lengths = self.lengths + (cur_coord - self.cur_coord).norm(p=2, dim=-1)  # (batch_dim, 1)
+        # lengths = self.lengths
+        # if self.cur_coord is not None:  # Don't add length for first action (selection of start node)
+        #     lengths = self.lengths + (cur_coord - self.cur_coord).norm(p=2, dim=-1)  # (batch_dim, 1)
 
         # Update should only be called with just 1 parallel step, in which case we can check this way if we should update
         first_a = prev_a if self.i.item() == 0 else self.first_a
@@ -104,7 +104,8 @@ class StatePcbRoute(NamedTuple):
             visited_ = mask_long_scatter(self.visited_, prev_a)
 
         return self._replace(first_a=first_a, prev_a=prev_a, visited_=visited_,
-                             lengths=lengths, cur_coord=cur_coord, i=self.i + 1)
+                             # lengths=lengths, cur_coord=cur_coord,
+                             i=self.i + 1)
 
     def all_finished(self):
         # Exactly n steps

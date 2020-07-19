@@ -30,7 +30,7 @@ class PcbRoute(object):
 
         costs = []
         for problem, order in zip(dataset, pi):
-            eval_dict = copt.evaluate(problem, order)
+            eval_dict = copt.evaluate(list(map(tuple, problem.type(torch.long).tolist())), order.type(torch.long).tolist())
             if not eval_dict['success']:
                 costs.append(penalty)
             else:
@@ -86,7 +86,7 @@ class PcbRouteDataset(Dataset):
         # Not implemented yet
 
         # Generate data on the fly...(can not be parallelized)
-        self.data = [torch.tensor(copt.getProblem(size)) for _ in range(num_samples)]
+        self.data = [torch.tensor(copt.getProblem(size), dtype=torch.float) for _ in range(num_samples)]
         self.size = len(self.data)
 
     def __len__(self):

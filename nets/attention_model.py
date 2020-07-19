@@ -139,7 +139,6 @@ class AttentionModel(nn.Module):
         using DataParallel as the results may be of different lengths on different GPUs
         :return:
         """
-
         # Encoding...
         if self.checkpoint_encoder and self.training:  # Only checkpoint if we need gradients
             embeddings, _ = checkpoint(self.embedder, self._init_embed(input))
