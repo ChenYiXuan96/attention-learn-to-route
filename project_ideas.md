@@ -1,6 +1,6 @@
 #### easiest training demo (copy and run in terminal)
 
-    python run.py --graph_size 10 --baseline rollout --batch_size 32 --epoch_size 128 --val_size 16 --embedding_dim 64 --hidden_dim 64 --n_epochs 20 --eval_batch_size 4 --run_name 'tsp10_rollout'
+    python run.py --problem PcbRoute --graph_size 10 --baseline rollout --batch_size 32 --epoch_size 128 --val_size 16 --embedding_dim 64 --hidden_dim 64 --n_epochs 20 --eval_batch_size 4 --run_name 'PcbRoute10_rollout'
 
 #### to run tensorboard UI
 tensorboard --logdir logs/tsp_10 (replace tsp_10 with the directory name you want to view)
@@ -25,3 +25,5 @@ Design three decoders:
 Compare their performances in experiment.
 
 The third one is the easiest, should be done before 20th July.
+
+	python run.py --problem PcbRoute --graph_size 5 --baseline rollout --batch_size 32 --epoch_size 8192 --val_size 128 --embedding_dim 128 --hidden_dim 128 --n_epochs 20 --eval_batch_size 32 --run_name 'PcbRoute5_rollout'
