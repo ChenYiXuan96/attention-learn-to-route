@@ -3,7 +3,8 @@
     python run.py --graph_size 10 --baseline rollout --batch_size 32 --epoch_size 128 --val_size 16 --embedding_dim 64 --hidden_dim 64 --n_epochs 20 --eval_batch_size 4 --run_name 'tsp10_rollout'
 
 #### to run tensorboard UI
-tensorboard --logdir logs/tsp_10 (replace tsp_10 with the directory name you want to view)
+	tensorboard --logdir logs/tsp_10 
+(replace tsp_10 with the directory name you want to view)
 
 #### ideas on experiments:
 Original paper:
