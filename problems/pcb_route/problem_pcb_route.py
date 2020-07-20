@@ -73,7 +73,6 @@ class PcbRouteDataset(Dataset):
         # size: graph_size
         # num_samples: val_size
         super(PcbRouteDataset, self).__init__()
-
         self.data_set = []
         # if filename is not None:
         #     assert os.path.splitext(filename)[1] == '.pkl'
@@ -86,7 +85,12 @@ class PcbRouteDataset(Dataset):
         # Not implemented yet
 
         # Generate data on the fly...(can not be parallelized)
-        self.data = [torch.tensor(copt.getProblem(size), dtype=torch.float) for _ in range(num_samples)]
+        self.data = []
+        for _ in range(num_samples):
+            data2append = torch.tensor(copt.getProblem(size), dtype=torch.float)
+            self.data.append(torch.tensor(data2append))
+        # self.data = [torch.tensor(copt.getProblem(size), dtype=torch.float) for _ in range(num_samples)]
+
         self.size = len(self.data)
 
     def __len__(self):
