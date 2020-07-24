@@ -17,14 +17,33 @@ Tables for hyper-parameters comparison, while figures for model comparison.
 The classic combinatorial problems have limited constraints. In TSP, the only constraint is each node can be visited only once. This can be done via masking process. However, other constraints may not be solves easily by masking. All kinds of constraints all transferred into masks. This applies to pcb routing problem.
 
 
-#### TODO:
+#### TODO (validate):
+- While validating model, document the optimal value using brute-force method.
+Compare the validation output against optimal value.
+(Make sure sampling rather than greedy decoder is implemented while validating)
+(Beam search hasn't been implemented yet)
+
+- validate on different graph sizes (5, 10, 20, 50, 100)
+
+Then validate on different decoder.
+
+#### TODO (decoder):
 Design three decoders: 
-- One using masking. masking out all the nodes that can not pass the eval function of copt.
-- One using backtracking, resample the illegal nodes until satisfied.
-- One using penalizing (for training only, only backtracking in testing).
+- One using masking. masking out all the nodes that can not pass the eval function of copt. (This is too computational expensive.)
+- One using backtracking, re-sample the illegal nodes until satisfied.
+- One using penalizing.
 
 Compare their performances in experiment.
 
-The third one is the easiest, should be done before 20th July.
+The third one is the easiest, should be done before 20th July. (Done)
 
 	python run.py --problem PcbRoute --graph_size 5 --baseline rollout --batch_size 32 --epoch_size 8192 --val_size 128 --embedding_dim 128 --hidden_dim 128 --n_epochs 20 --eval_batch_size 32 --run_name 'PcbRoute5_rollout'
+当前的进展：
+
+惩罚reward作为decoder已完成；
+
+目前的问题：
+
+之后的规划：
+
+准备做回溯法decoder

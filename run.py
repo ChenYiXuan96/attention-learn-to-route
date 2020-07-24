@@ -158,6 +158,9 @@ def run(opts):
     val_dataset = problem.make_dataset(
         size=opts.graph_size, num_samples=opts.val_size, filename=opts.val_dataset, distribution=opts.data_distribution)
 
+    # Note that dataset to train, dataset to validate and dataset to determine whether the parameters are updated
+    # are three different datasets.
+
     if opts.resume:
         epoch_resume = int(os.path.splitext(os.path.split(opts.resume)[-1])[0].split("-")[1])
 
